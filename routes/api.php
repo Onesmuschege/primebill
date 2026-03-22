@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\PlanController;
 
 // Public routes
 Route::prefix('auth')->group(function () {
@@ -32,6 +33,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{client}/tickets', [ClientController::class, 'tickets']);
         Route::post('/{client}/suspend', [ClientController::class, 'suspend']);
         Route::post('/{client}/activate', [ClientController::class, 'activate']);
+    });
+
+    // Plans
+    Route::prefix('plans')->group(function () {
+        Route::get('/', [PlanController::class, 'index']);
+        Route::post('/', [PlanController::class, 'store']);
+        Route::get('/{plan}', [PlanController::class, 'show']);
+        Route::put('/{plan}', [PlanController::class, 'update']);
+        Route::delete('/{plan}', [PlanController::class, 'destroy']);
+        Route::get('/{plan}/clients', [PlanController::class, 'clients']);
     });
 
 });
