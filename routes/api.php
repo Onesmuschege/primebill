@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\PlanController;
+use App\Http\Controllers\Api\RouterController;
 
 // Public routes
 Route::prefix('auth')->group(function () {
@@ -43,6 +44,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{plan}', [PlanController::class, 'update']);
         Route::delete('/{plan}', [PlanController::class, 'destroy']);
         Route::get('/{plan}/clients', [PlanController::class, 'clients']);
+    });
+
+
+    // Routers
+    Route::prefix('routers')->group(function () {
+        Route::get('/', [RouterController::class, 'index']);
+        Route::post('/', [RouterController::class, 'store']);
+        Route::get('/{router}', [RouterController::class, 'show']);
+        Route::put('/{router}', [RouterController::class, 'update']);
+        Route::delete('/{router}', [RouterController::class, 'destroy']);
+        Route::post('/{router}/test-connection', [RouterController::class, 'testConnection']);
+        Route::get('/{router}/resources', [RouterController::class, 'resources']);
+        Route::get('/{router}/sessions', [RouterController::class, 'sessions']);
     });
 
 });
