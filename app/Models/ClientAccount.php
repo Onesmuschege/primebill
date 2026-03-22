@@ -26,4 +26,9 @@ class ClientAccount extends Model
     {
         return $this->belongsTo(Plan::class);
     }
+
+    public function radiusSessions()
+    {
+        return $this->hasMany(RadiusSession::class, 'client_account_id');
+    }
 }

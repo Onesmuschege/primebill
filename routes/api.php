@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\MpesaController;
 use App\Http\Controllers\Api\SmsController;
 use App\Http\Controllers\Api\TicketController;
+use App\Http\Controllers\Api\DashboardController;
+
 
 // M-Pesa callbacks (NO auth - Safaricom hits these directly)
 Route::prefix('mpesa')->group(function () {
@@ -114,6 +116,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{ticket}/assign', [TicketController::class, 'assign']);
         Route::post('/{ticket}/close', [TicketController::class, 'close']);
         Route::post('/{ticket}/escalate', [TicketController::class, 'escalate']);
+    });
+
+    // Dashboard
+    Route::prefix('dashboard')->group(function () {
+        Route::get('/stats', [DashboardController::class, 'stats']);
+        Route::get('/traffic', [DashboardController::class, 'traffic']);
+        Route::get('/top-downloaders', [DashboardController::class, 'topDownloaders']);
+    });
+
+    // Analytics
+    Route::prefix('analytics')->group(function () {
+        Route::get('/income', [DashboardController::class, 'incomeAnalytics']);
     });
 
 });
