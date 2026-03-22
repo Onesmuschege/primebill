@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\MpesaController;
 use App\Http\Controllers\Api\SmsController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\ExpenditureController;
+use App\Http\Controllers\Api\CommissionController;
 
 
 // M-Pesa callbacks (NO auth - Safaricom hits these directly)
@@ -128,6 +130,25 @@ Route::middleware('auth:sanctum')->group(function () {
     // Analytics
     Route::prefix('analytics')->group(function () {
         Route::get('/income', [DashboardController::class, 'incomeAnalytics']);
+    });
+
+    // Expenditures
+    Route::prefix('expenditures')->group(function () {
+        Route::get('/summary', [ExpenditureController::class, 'summary']);
+        Route::get('/categories', [ExpenditureController::class, 'categories']);
+        Route::get('/', [ExpenditureController::class, 'index']);
+        Route::post('/', [ExpenditureController::class, 'store']);
+        Route::get('/{expenditure}', [ExpenditureController::class, 'show']);
+        Route::put('/{expenditure}', [ExpenditureController::class, 'update']);
+        Route::delete('/{expenditure}', [ExpenditureController::class, 'destroy']);
+    });
+
+    // Commissions
+    Route::prefix('commissions')->group(function () {
+        Route::get('/', [CommissionController::class, 'index']);
+        Route::get('/summary', [CommissionController::class, 'summary']);
+        Route::post('/{commission}/approve', [CommissionController::class, 'approve']);
+        Route::post('/{commission}/pay', [CommissionController::class, 'pay']);
     });
 
 });
