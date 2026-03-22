@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\RouterController;
+use App\Http\Controllers\Api\InvoiceController;
 
 // Public routes
 Route::prefix('auth')->group(function () {
@@ -57,6 +58,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{router}/test-connection', [RouterController::class, 'testConnection']);
         Route::get('/{router}/resources', [RouterController::class, 'resources']);
         Route::get('/{router}/sessions', [RouterController::class, 'sessions']);
+    });
+
+    // Invoices
+    Route::prefix('invoices')->group(function () {
+        Route::get('/', [InvoiceController::class, 'index']);
+        Route::post('/', [InvoiceController::class, 'store']);
+        Route::post('/bulk-generate', [InvoiceController::class, 'bulkGenerate']);
+        Route::get('/{invoice}', [InvoiceController::class, 'show']);
+        Route::put('/{invoice}', [InvoiceController::class, 'update']);
+        Route::delete('/{invoice}', [InvoiceController::class, 'destroy']);
     });
 
 });
