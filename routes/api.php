@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\RouterController;
 use App\Http\Controllers\Api\InvoiceController;
+use App\Http\Controllers\Api\PaymentController;
 
 // Public routes
 Route::prefix('auth')->group(function () {
@@ -68,6 +69,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{invoice}', [InvoiceController::class, 'show']);
         Route::put('/{invoice}', [InvoiceController::class, 'update']);
         Route::delete('/{invoice}', [InvoiceController::class, 'destroy']);
+    });
+
+    // Payments
+    Route::prefix('payments')->group(function () {
+        Route::get('/', [PaymentController::class, 'index']);
+        Route::post('/', [PaymentController::class, 'store']);
+        Route::get('/summary', [PaymentController::class, 'summary']);
+        Route::get('/{payment}', [PaymentController::class, 'show']);
+        Route::delete('/{payment}', [PaymentController::class, 'destroy']);
     });
 
 });
