@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\RouterController;
 use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\MpesaController;
+use App\Http\Controllers\Api\SmsController;
 
 // M-Pesa callbacks (NO auth - Safaricom hits these directly)
 Route::prefix('mpesa')->group(function () {
@@ -90,6 +91,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // M-Pesa protected
     Route::prefix('mpesa')->group(function () {
         Route::post('/stk-push', [MpesaController::class, 'stkPush']);
+    });
+
+    // SMS
+    Route::prefix('sms')->group(function () {
+        Route::post('/send', [SmsController::class, 'send']);
+        Route::post('/send-bulk', [SmsController::class, 'sendBulk']);
+        Route::get('/logs', [SmsController::class, 'logs']);
+        Route::get('/balance', [SmsController::class, 'balance']);
+        Route::get('/templates', [SmsController::class, 'templates']);
     });
 
 });
