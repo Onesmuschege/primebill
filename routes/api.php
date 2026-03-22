@@ -13,7 +13,7 @@ use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ExpenditureController;
 use App\Http\Controllers\Api\CommissionController;
-
+use App\Http\Controllers\Api\InventoryController;
 
 // M-Pesa callbacks (NO auth - Safaricom hits these directly)
 Route::prefix('mpesa')->group(function () {
@@ -149,6 +149,20 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/summary', [CommissionController::class, 'summary']);
         Route::post('/{commission}/approve', [CommissionController::class, 'approve']);
         Route::post('/{commission}/pay', [CommissionController::class, 'pay']);
+    });
+
+    // Inventory
+    Route::prefix('inventory')->group(function () {
+        Route::get('/low-stock', [InventoryController::class, 'lowStock']);
+        Route::get('/assigned', [InventoryController::class, 'assigned']);
+        Route::get('/summary', [InventoryController::class, 'summary']);
+        Route::get('/', [InventoryController::class, 'index']);
+        Route::post('/', [InventoryController::class, 'store']);
+        Route::get('/{inventoryItem}', [InventoryController::class, 'show']);
+        Route::put('/{inventoryItem}', [InventoryController::class, 'update']);
+        Route::delete('/{inventoryItem}', [InventoryController::class, 'destroy']);
+        Route::post('/{inventoryItem}/assign', [InventoryController::class, 'assign']);
+        Route::post('/{inventoryItem}/return', [InventoryController::class, 'return']);
     });
 
 });
