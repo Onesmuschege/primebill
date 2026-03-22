@@ -1,0 +1,29 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class ClientAccount extends Model
+{
+    protected $fillable = [
+        'client_id', 'plan_id', 'username', 'password',
+        'ip_address', 'mac_address', 'type', 'status',
+        'expiry_date', 'activated_at',
+    ];
+
+    protected $casts = [
+        'expiry_date'  => 'datetime',
+        'activated_at' => 'datetime',
+    ];
+
+    public function client()
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    public function plan()
+    {
+        return $this->belongsTo(Plan::class);
+    }
+}
