@@ -7,6 +7,14 @@ use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\RouterController;
 use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\MpesaController;
+
+// M-Pesa callbacks (NO auth - Safaricom hits these directly)
+Route::prefix('mpesa')->group(function () {
+    Route::post('/stk-callback', [MpesaController::class, 'stkCallback']);
+    Route::post('/c2b-validation', [MpesaController::class, 'c2bValidation']);
+    Route::post('/c2b-confirmation', [MpesaController::class, 'c2bConfirmation']);
+});
 
 // Public routes
 Route::prefix('auth')->group(function () {
@@ -48,7 +56,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{plan}/clients', [PlanController::class, 'clients']);
     });
 
-
     // Routers
     Route::prefix('routers')->group(function () {
         Route::get('/', [RouterController::class, 'index']);
@@ -78,6 +85,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/summary', [PaymentController::class, 'summary']);
         Route::get('/{payment}', [PaymentController::class, 'show']);
         Route::delete('/{payment}', [PaymentController::class, 'destroy']);
+    });
+
+    // M-Pesa protected
+    Route::prefix('mpesa')->group(function () {
+        Route::post('/stk-push', [MpesaController::class, 'stkPush']);
     });
 
 });
