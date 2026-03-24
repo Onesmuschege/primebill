@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Model;
 
 class Client extends Model
 {
+    use HasApiTokens;
+
     protected $fillable = [
         'first_name', 'last_name', 'email', 'phone',
         'id_number', 'address', 'county', 'town',

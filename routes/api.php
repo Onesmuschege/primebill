@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\ClientAccountController;
 use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\RouterController;
 use App\Http\Controllers\Api\InvoiceController;
@@ -16,8 +17,14 @@ use App\Http\Controllers\Api\CommissionController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\LogController;
+use App\Http\Controllers\Portal\PortalAuthController;
+use App\Http\Controllers\Portal\PortalDashboardController;
+use App\Http\Controllers\Portal\PortalInvoiceController;
+use App\Http\Controllers\Portal\PortalPaymentController;
+use App\Http\Controllers\Portal\PortalTicketController;
+use App\Http\Controllers\Portal\PortalProfileController;
 
-// M-Pesa callbacks (NO auth - Safaricom hits these directly)
+// M-Pesa callbacks (NO auth)
 Route::prefix('mpesa')->group(function () {
     Route::post('/stk-callback', [MpesaController::class, 'stkCallback']);
     Route::post('/c2b-validation', [MpesaController::class, 'c2bValidation']);
@@ -29,7 +36,28 @@ Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
 });
 
-// Protected routes
+// Client Portal routes
+Route::prefix('portal')->group(function () {
+    Route::post('/login', [PortalAuthController::class, 'login']);
+
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/logout', [PortalAuthController::class, 'logout']);
+        Route::get('/dashboard', [PortalDashboardController::class, 'index']);
+        Route::get('/invoices', [PortalInvoiceController::class, 'index']);
+        Route::get('/invoices/{invoice}', [PortalInvoiceController::class, 'show']);
+        Route::get('/payments', [PortalPaymentController::class, 'index']);
+        Route::post('/payments/stk-push', [PortalPaymentController::class, 'stkPush']);
+        Route::get('/tickets', [PortalTicketController::class, 'index']);
+        Route::post('/tickets', [PortalTicketController::class, 'store']);
+        Route::get('/tickets/{ticket}', [PortalTicketController::class, 'show']);
+        Route::post('/tickets/{ticket}/reply', [PortalTicketController::class, 'reply']);
+        Route::get('/profile', [PortalProfileController::class, 'index']);
+        Route::put('/profile', [PortalProfileController::class, 'update']);
+        Route::post('/profile/change-password', [PortalProfileController::class, 'changePassword']);
+    });
+});
+
+// Protected Admin/Staff routes
 Route::middleware('auth:sanctum')->group(function () {
 
     // Auth
@@ -52,6 +80,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{client}/tickets', [ClientController::class, 'tickets']);
         Route::post('/{client}/suspend', [ClientController::class, 'suspend']);
         Route::post('/{client}/activate', [ClientController::class, 'activate']);
+        Route::post('/{client}/accounts', [ClientAccountController::class, 'store']);
+        Route::put('/{client}/accounts/{account}', [ClientAccountController::class, 'update']);
+        Route::delete('/{client}/accounts/{account}', [ClientAccountController::class, 'destroy']);
     });
 
     // Plans
