@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ExpenditureController;
 use App\Http\Controllers\Api\CommissionController;
 use App\Http\Controllers\Api\InventoryController;
+use App\Http\Controllers\Api\SettingsController;
+use App\Http\Controllers\Api\LogController;
 
 // M-Pesa callbacks (NO auth - Safaricom hits these directly)
 Route::prefix('mpesa')->group(function () {
@@ -163,6 +165,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{inventoryItem}', [InventoryController::class, 'destroy']);
         Route::post('/{inventoryItem}/assign', [InventoryController::class, 'assign']);
         Route::post('/{inventoryItem}/return', [InventoryController::class, 'return']);
+    });
+
+    // Settings
+    Route::prefix('settings')->group(function () {
+        Route::get('/', [SettingsController::class, 'index']);
+        Route::put('/', [SettingsController::class, 'update']);
+        Route::post('/test-sms', [SettingsController::class, 'testSms']);
+        Route::post('/upload-logo', [SettingsController::class, 'uploadLogo']);
+    });
+
+    // Logs
+    Route::prefix('logs')->group(function () {
+        Route::get('/export', [LogController::class, 'export']);
+        Route::get('/', [LogController::class, 'index']);
+        Route::get('/{systemLog}', [LogController::class, 'show']);
     });
 
 });
