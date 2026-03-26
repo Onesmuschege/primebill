@@ -23,6 +23,7 @@ use App\Http\Controllers\Portal\PortalInvoiceController;
 use App\Http\Controllers\Portal\PortalPaymentController;
 use App\Http\Controllers\Portal\PortalTicketController;
 use App\Http\Controllers\Portal\PortalProfileController;
+use App\Http\Controllers\Api\ReportController;
 
 // M-Pesa callbacks (NO auth)
 Route::prefix('mpesa')->group(function () {
@@ -211,6 +212,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/export', [LogController::class, 'export']);
         Route::get('/', [LogController::class, 'index']);
         Route::get('/{systemLog}', [LogController::class, 'show']);
+    });
+
+    // Reports
+    Route::prefix('reports')->group(function () {
+        Route::get('/income', [ReportController::class, 'income']);
+        Route::get('/clients', [ReportController::class, 'clients']);
+        Route::get('/invoices', [ReportController::class, 'invoices']);
+        Route::get('/sms', [ReportController::class, 'sms']);
+        Route::get('/network', [ReportController::class, 'network']);
+        Route::get('/inventory', [ReportController::class, 'inventory']);
+        Route::get('/expenditure', [ReportController::class, 'expenditure']);
+        Route::get('/{type}/export', [ReportController::class, 'export']);
     });
 
 });
