@@ -3,6 +3,7 @@
 namespace App\Services\Dashboard;
 
 use App\Models\Client;
+use App\Models\ClientAccount;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Ticket;
@@ -16,17 +17,35 @@ class DashboardService
     public function getStats(): array
     {
         $today = now()->toDateString();
-        $month = now()->format('Y-m');
 
         return [
             'income_today'    => $this->getIncomeToday($today),
-            'income_month'    => $this->getIncomeThisMonth($month),
+            'income_month'    => $this->getIncomeThisMonth(),
             'active_users'    => $this->getActiveUsers(),
             'total_users'     => Client::count(),
             'tickets'         => $this->getTicketStats(),
             'account_status'  => $this->getAccountStatus(),
             'hotspot_status'  => $this->getHotspotStatus(),
             'sms_stats'       => $this->getSmsStats($today),
+
+            // ✅ NEW ADDED STATS
+            'overdue_invoices' => [
+                'count'  => Invoice::where('status', 'overdue')->count(),
+                'amount' => Invoice::where('status', 'overdue')->sum('amount'),
+            ],
+
+            'routers' => [
+                'total'   => Router::count(),
+                'online'  => Router::where('status', 'online')->count(),
+                'offline' => Router::where('status', 'offline')->count(),
+            ],
+
+            'account_summary' => [
+                'online'    => ClientAccount::where('status', 'active')->count(),
+                'offline'   => ClientAccount::where('status', 'inactive')->count(),
+                'overdue'   => ClientAccount::where('status', 'overdue')->count(),
+                'suspended' => ClientAccount::where('status', 'suspended')->count(),
+            ],
         ];
     }
 
@@ -42,7 +61,7 @@ class DashboardService
         ];
     }
 
-    private function getIncomeThisMonth(string $month): array
+    private function getIncomeThisMonth(): array
     {
         return [
             'amount' => Payment::whereYear('created_at', now()->year)
@@ -76,10 +95,10 @@ class DashboardService
         return [
             'online'   => RadiusSession::where('status', 'active')->count(),
             'offline'  => Client::whereDoesntHave('accounts', function ($q) {
-                              $q->whereHas('radiusSessions', function ($q) {
-                                  $q->where('status', 'active');
-                              });
-                          })->count(),
+                $q->whereHas('radiusSessions', function ($q) {
+                    $q->where('status', 'active');
+                });
+            })->count(),
             'overdue'  => Invoice::where('status', 'overdue')
                                  ->distinct('client_id')
                                  ->count('client_id'),
@@ -92,8 +111,8 @@ class DashboardService
             'online'  => RadiusSession::where('status', 'active')->count(),
             'offline' => 0,
             'total'   => Client::whereHas('accounts', function ($q) {
-                             $q->where('type', 'prepaid');
-                         })->count(),
+                $q->where('type', 'prepaid');
+            })->count(),
         ];
     }
 
@@ -117,11 +136,11 @@ class DashboardService
         foreach ($routers as $router) {
             $query = NetworkTraffic::where('router_id', $router->id);
 
-            match($period) {
-                'day'  => $query->where('recorded_at', '>=', now()->subDay()),
-                'week' => $query->where('recorded_at', '>=', now()->subWeek()),
-                'month'=> $query->where('recorded_at', '>=', now()->subMonth()),
-                default=> $query->where('recorded_at', '>=', now()->subDay()),
+            match ($period) {
+                'day'   => $query->where('recorded_at', '>=', now()->subDay()),
+                'week'  => $query->where('recorded_at', '>=', now()->subWeek()),
+                'month' => $query->where('recorded_at', '>=', now()->subMonth()),
+                default => $query->where('recorded_at', '>=', now()->subDay()),
             };
 
             $traffic = $query->orderBy('recorded_at', 'asc')->get();
@@ -148,8 +167,7 @@ class DashboardService
             ->get()
             ->map(fn($s) => [
                 'username'   => $s->username,
-                'client'     => $s->account?->client?->first_name . ' ' .
-                                $s->account?->client?->last_name,
+                'client'     => trim(($s->account?->client?->first_name ?? '') . ' ' . ($s->account?->client?->last_name ?? '')),
                 'downloaded' => round($s->bytes_out / 1073741824, 2) . ' GB',
                 'uploaded'   => round($s->bytes_in / 1073741824, 2) . ' GB',
             ])
@@ -162,7 +180,7 @@ class DashboardService
                            ->where('status', 'completed')
                            ->get();
 
-        $grouped = match($groupBy) {
+        $grouped = match ($groupBy) {
             'month' => $payments->groupBy(fn($p) => $p->created_at->format('Y-m')),
             'year'  => $payments->groupBy(fn($p) => $p->created_at->format('Y')),
             default => $payments->groupBy(fn($p) => $p->created_at->format('Y-m-d')),

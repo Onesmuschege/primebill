@@ -9,6 +9,11 @@ use Illuminate\Http\Request;
 
 class InvoiceService
 {
+    public function __construct(
+        protected LedgerService $ledgerService
+    ) {
+    }
+
     public function getAllInvoices(Request $request)
     {
         $query = Invoice::with('client');
@@ -54,6 +59,7 @@ class InvoiceService
         $data['status']         = $data['status'] ?? 'unpaid';
 
         $invoice = Invoice::create($data);
+        $this->ledgerService->postInvoiceDebit($invoice, $userId ?: null);
 
         SystemLog::create([
             'user_id'    => $userId,

@@ -31,8 +31,12 @@ class PaymentController extends Controller
     // POST /api/payments
     public function store(StorePaymentRequest $request)
     {
+        $payload = $request->validated();
+        $payload['idempotency_key'] = $request->header('Idempotency-Key')
+            ?: (!empty($payload['reference']) ? "{$payload['method']}:{$payload['reference']}" : null);
+
         $payment = $this->paymentService->recordPayment(
-            $request->validated(),
+            $payload,
             $request->user()->id
         );
 

@@ -7,9 +7,17 @@ use App\Models\Invoice;
 use App\Models\ClientAccount;
 use App\Models\SystemLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 class PaymentService
 {
+    public function __construct(
+        protected LedgerService $ledgerService,
+        protected IdempotencyService $idempotencyService
+    ) {
+    }
+
     public function getAllPayments(Request $request)
     {
         $query = Payment::with('client', 'invoice');
@@ -40,61 +48,99 @@ class PaymentService
 
     public function recordPayment(array $data, $userId): Payment
     {
-        $data['status']      = 'completed';
-        $data['recorded_by'] = $userId;
+        $idempotencyKey = $data['idempotency_key'] ?? null;
+        unset($data['idempotency_key']);
 
-        $payment = Payment::create($data);
+        $paymentId = $this->idempotencyService->run('payment.record', $idempotencyKey, function () use ($data, $userId) {
+            $existingPayment = null;
+            if (!empty($data['reference'])) {
+                $existingPayment = Payment::where('method', $data['method'])
+                    ->where('reference', $data['reference'])
+                    ->first();
+            }
 
-        // Mark invoice as paid if invoice_id provided
-        if (!empty($data['invoice_id'])) {
-            $invoice = Invoice::find($data['invoice_id']);
-            if ($invoice && $data['amount'] >= $invoice->total) {
-                $invoice->update([
-                    'status'  => 'paid',
-                    'paid_at' => now(),
+            if (!$existingPayment && !empty($data['mpesa_code'])) {
+                $existingPayment = Payment::where('mpesa_code', $data['mpesa_code'])->first();
+            }
+
+            if ($existingPayment) {
+                return $existingPayment->id;
+            }
+
+            $payment = DB::transaction(function () use ($data, $userId) {
+                $data['status'] = 'completed';
+                $data['recorded_by'] = $userId;
+                $payment = Payment::create($data);
+
+                $this->ledgerService->postPaymentCredit($payment, $userId ?: null);
+
+                if (!empty($data['invoice_id'])) {
+                    $invoice = Invoice::find($data['invoice_id']);
+
+                    if ($invoice) {
+                        $paidAmount = Payment::where('invoice_id', $invoice->id)
+                            ->where('status', 'completed')
+                            ->sum('amount');
+
+                        if ($paidAmount >= $invoice->total) {
+                            $invoice->update([
+                                'status' => 'paid',
+                                'paid_at' => now(),
+                            ]);
+
+                            $this->extendClientAccount($data['client_id'], $invoice);
+                        }
+                    }
+                }
+
+                SystemLog::create([
+                    'user_id' => $userId,
+                    'action' => 'recorded payment',
+                    'model' => 'Payment',
+                    'model_id' => $payment->id,
+                    'new_values' => $data,
                 ]);
 
-                // Extend client account expiry
-                $this->extendClientAccount(
-                    $data['client_id'],
-                    $invoice
-                );
-            }
+                return $payment;
+            });
+
+            return $payment->id;
+        });
+
+        $payment = Payment::with('client', 'invoice')->find($paymentId);
+        if (!$payment) {
+            throw new RuntimeException('Failed to resolve payment after processing.');
         }
 
-        SystemLog::create([
-            'user_id'    => $userId,
-            'action'     => 'recorded payment',
-            'model'      => 'Payment',
-            'model_id'   => $payment->id,
-            'new_values' => $data,
-        ]);
-
-        return $payment->load('client', 'invoice');
+        return $payment;
     }
 
     public function deletePayment(Payment $payment, $userId): void
     {
-        // Reverse invoice status if payment is deleted
-        if ($payment->invoice_id) {
-            $invoice = Invoice::find($payment->invoice_id);
-            if ($invoice && $invoice->status === 'paid') {
-                $invoice->update([
-                    'status'  => 'unpaid',
-                    'paid_at' => null,
-                ]);
+        DB::transaction(function () use ($payment, $userId) {
+            // Reverse invoice status if payment is deleted
+            if ($payment->invoice_id) {
+                $invoice = Invoice::find($payment->invoice_id);
+                if ($invoice && $invoice->status === 'paid') {
+                    $invoice->update([
+                        'status'  => 'unpaid',
+                        'paid_at' => null,
+                    ]);
+                }
             }
-        }
 
-        SystemLog::create([
-            'user_id'    => $userId,
-            'action'     => 'deleted payment',
-            'model'      => 'Payment',
-            'model_id'   => $payment->id,
-            'old_values' => $payment->toArray(),
-        ]);
+            $this->ledgerService->postPaymentReversal($payment, $userId ?: null);
 
-        $payment->delete();
+            SystemLog::create([
+                'user_id'    => $userId,
+                'action'     => 'deleted payment',
+                'model'      => 'Payment',
+                'model_id'   => $payment->id,
+                'old_values' => $payment->toArray(),
+            ]);
+
+            $payment->delete();
+        });
     }
 
     private function extendClientAccount($clientId, Invoice $invoice): void

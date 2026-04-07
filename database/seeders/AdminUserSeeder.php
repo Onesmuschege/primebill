@@ -10,18 +10,19 @@ class AdminUserSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::create([
+        $adminPassword = env('SEED_ADMIN_PASSWORD');
+        $staffPassword = env('SEED_STAFF_PASSWORD');
+
+        $admin = User::updateOrCreate(['email' => 'admin@primebill.co.ke'], [
             'name'     => 'Super Admin',
-            'email'    => 'admin@primebill.co.ke',
-            'password' => Hash::make('Admin@1234'),
+            'password' => Hash::make($adminPassword ?: str()->random(24)),
         ]);
 
         $admin->assignRole('super_admin');
 
-        $staff = User::create([
+        $staff = User::updateOrCreate(['email' => 'staff@primebill.co.ke'], [
             'name'     => 'Staff User',
-            'email'    => 'staff@primebill.co.ke',
-            'password' => Hash::make('Staff@1234'),
+            'password' => Hash::make($staffPassword ?: str()->random(24)),
         ]);
 
         $staff->assignRole('staff');

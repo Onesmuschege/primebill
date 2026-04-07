@@ -110,6 +110,7 @@ class MpesaService
                 'method'     => 'mpesa',
                 'mpesa_code' => $mpesaCode,
                 'reference'  => $checkoutId,
+                'idempotency_key' => $mpesaCode ?: $checkoutId,
             ], null);
 
             return true;
@@ -145,6 +146,7 @@ class MpesaService
                 'method'     => 'mpesa',
                 'mpesa_code' => $mpesaCode,
                 'reference'  => $account,
+                'idempotency_key' => $mpesaCode ?: $account,
             ], null);
 
             return true;
