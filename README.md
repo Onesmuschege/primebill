@@ -8,7 +8,7 @@
 
 ## Overview
 
-PrimeBill API is the backend engine powering the PrimeBill ISP Billing System. It provides a comprehensive REST API covering subscriber management, automated billing, M-Pesa Daraja payment processing, MikroTik RouterOS integration, FreeRADIUS synchronization, SMS notifications, and real-time network monitoring — all tailored for the Kenyan ISP market.
+PrimeBill API is the backend engine powering the PrimeBill ISP Billing System. It provides a comprehensive REST API covering subscriber management, automated billing, M-Pesa Daraja payment processing, MikroTik RouterOS integration, FreeRADIUS synchronization, SMS notifications, and real-time network monitoring all tailored for the Kenyan ISP market.
 
 ---
 
