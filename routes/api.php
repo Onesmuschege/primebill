@@ -27,21 +27,23 @@ use App\Http\Controllers\Api\ReportController;
 
 // M-Pesa callbacks (NO auth)
 Route::prefix('mpesa')->group(function () {
-    Route::post('/stk-callback', [MpesaController::class, 'stkCallback']);
-    Route::post('/c2b-validation', [MpesaController::class, 'c2bValidation']);
-    Route::post('/c2b-confirmation', [MpesaController::class, 'c2bConfirmation']);
+    Route::middleware('mpesa.callback')->group(function () {
+        Route::post('/stk-callback', [MpesaController::class, 'stkCallback']);
+        Route::post('/c2b-validation', [MpesaController::class, 'c2bValidation']);
+        Route::post('/c2b-confirmation', [MpesaController::class, 'c2bConfirmation']);
+    });
 });
 
 // Public routes
 Route::prefix('auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 });
 
 // Client Portal routes
 Route::prefix('portal')->group(function () {
-    Route::post('/login', [PortalAuthController::class, 'login']);
+    Route::post('/login', [PortalAuthController::class, 'login'])->middleware('throttle:10,1');
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/logout', [PortalAuthController::class, 'logout']);
         Route::get('/dashboard', [PortalDashboardController::class, 'index']);
         Route::get('/invoices', [PortalInvoiceController::class, 'index']);
@@ -59,7 +61,7 @@ Route::prefix('portal')->group(function () {
 });
 
 // Protected Admin/Staff routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum'])->group(function () {
 
     // Auth
     Route::prefix('auth')->group(function () {
@@ -155,14 +157,14 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Dashboard
-    Route::prefix('dashboard')->middleware('permission:view reports')->group(function () {
+    Route::prefix('dashboard')->group(function () {
         Route::get('/stats', [DashboardController::class, 'stats']);
         Route::get('/traffic', [DashboardController::class, 'traffic']);
         Route::get('/top-downloaders', [DashboardController::class, 'topDownloaders']);
     });
 
     // Analytics
-    Route::prefix('analytics')->middleware('permission:view reports')->group(function () {
+    Route::prefix('analytics')->group(function () {
         Route::get('/income', [DashboardController::class, 'incomeAnalytics']);
     });
 

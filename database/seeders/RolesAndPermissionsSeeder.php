@@ -13,61 +13,34 @@ class RolesAndPermissionsSeeder extends Seeder
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
         $permissions = [
-            // Clients
             'view clients', 'create clients', 'edit clients', 'delete clients',
             'suspend clients', 'activate clients',
-
-            // Plans
             'view plans', 'create plans', 'edit plans', 'delete plans',
-
-            // Invoices
             'view invoices', 'create invoices', 'edit invoices', 'delete invoices',
-
-            // Payments
             'view payments', 'create payments', 'delete payments',
-
-            // Tickets
             'view tickets', 'create tickets', 'edit tickets', 'delete tickets',
             'assign tickets', 'close tickets',
-
-            // Network
             'view routers', 'create routers', 'edit routers', 'delete routers',
             'view radius', 'sync radius',
-
-            // SMS
             'view sms', 'send sms',
-
-            // Reports
             'view reports', 'export reports',
-
-            // Finance
             'view finance', 'create expenditure', 'view commissions',
             'approve commissions',
-
-            // Inventory
             'view inventory', 'create inventory', 'edit inventory',
             'delete inventory',
-
-            // Settings
             'view settings', 'edit settings',
-
-            // Logs
             'view logs',
-
-            // Users
             'view users', 'create users', 'edit users', 'delete users',
         ];
 
         foreach ($permissions as $permission) {
-            Permission::create(['name' => $permission]);
+            Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
 
-        // Super Admin - has all permissions
-        $superAdmin = Role::create(['name' => 'super_admin']);
+        $superAdmin = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
         $superAdmin->givePermissionTo(Permission::all());
 
-        // Admin - most permissions
-        $admin = Role::create(['name' => 'admin']);
+        $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
         $admin->givePermissionTo([
             'view clients', 'create clients', 'edit clients',
             'suspend clients', 'activate clients',
@@ -85,8 +58,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'view settings', 'view logs',
         ]);
 
-        // Staff - limited permissions
-        $staff = Role::create(['name' => 'staff']);
+        $staff = Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
         $staff->givePermissionTo([
             'view clients', 'create clients', 'edit clients',
             'suspend clients', 'activate clients',
@@ -100,8 +72,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'view inventory',
         ]);
 
-        // Client - portal only
-        $client = Role::create(['name' => 'client']);
+        $client = Role::firstOrCreate(['name' => 'client', 'guard_name' => 'web']);
         $client->givePermissionTo([
             'view invoices',
             'view payments',

@@ -2,12 +2,12 @@
 
 namespace App\Services\Mpesa;
 
-use App\Models\Payment;
 use App\Models\Invoice;
-use App\Models\Client;
+use App\Models\MpesaTransaction;
 use App\Services\Billing\PaymentService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Exception;
 
 class MpesaService
@@ -40,6 +40,11 @@ class MpesaService
     public function stkPush(string $phone, float $amount, int $invoiceId, string $accountRef): array
     {
         try {
+            $invoice = Invoice::find($invoiceId);
+            if (!$invoice) {
+                return ['error' => 'Invoice not found'];
+            }
+
             $token     = $this->getAccessToken();
             $timestamp = now()->format('YmdHis');
             $shortcode = config('mpesa.shortcode');
@@ -47,22 +52,43 @@ class MpesaService
             $password  = base64_encode($shortcode . $passkey . $timestamp);
             $phone     = $this->formatPhone($phone);
 
+            $requestPayload = [
+                'BusinessShortCode' => $shortcode,
+                'Password'          => $password,
+                'Timestamp'         => $timestamp,
+                'TransactionType'   => 'CustomerPayBillOnline',
+                'Amount'            => (int) $amount,
+                'PartyA'            => $phone,
+                'PartyB'            => $shortcode,
+                'PhoneNumber'       => $phone,
+                'CallBackURL'       => config('mpesa.callback_url'),
+                'AccountReference'  => $accountRef,
+                'TransactionDesc'   => 'Internet Bill Payment',
+            ];
+
             $response = Http::withToken($token)
                 ->post("{$this->baseUrl}/mpesa/stkpush/v1/processrequest", [
-                    'BusinessShortCode' => $shortcode,
-                    'Password'          => $password,
-                    'Timestamp'         => $timestamp,
-                    'TransactionType'   => 'CustomerPayBillOnline',
-                    'Amount'            => (int) $amount,
-                    'PartyA'            => $phone,
-                    'PartyB'            => $shortcode,
-                    'PhoneNumber'       => $phone,
-                    'CallBackURL'       => config('mpesa.callback_url'),
-                    'AccountReference'  => $accountRef,
-                    'TransactionDesc'   => 'Internet Bill Payment',
+                    ...$requestPayload,
                 ]);
 
-            return $response->json();
+            $json = $response->json() ?? [];
+
+            // Track STK request for secure callback reconciliation.
+            MpesaTransaction::create([
+                'client_id' => $invoice->client_id,
+                'invoice_id' => $invoice->id,
+                'phone' => $phone,
+                'amount' => (int) $amount,
+                'account_reference' => $accountRef,
+                'merchant_request_id' => $json['MerchantRequestID'] ?? null,
+                'checkout_request_id' => $json['CheckoutRequestID'] ?? null,
+                'result_code' => $json['ResponseCode'] ?? null,
+                'result_desc' => $json['ResponseDescription'] ?? ($json['errorMessage'] ?? null),
+                'status' => isset($json['CheckoutRequestID']) ? 'pending' : 'failed',
+                'raw_request' => $requestPayload,
+            ]);
+
+            return $json;
 
         } catch (Exception $e) {
             Log::error('STK Push Error: ' . $e->getMessage());
@@ -74,44 +100,73 @@ class MpesaService
     public function handleStkCallback(array $payload): bool
     {
         try {
-            $body        = $payload['Body']['stkCallback'];
-            $resultCode  = $body['ResultCode'];
-            $checkoutId  = $body['CheckoutRequestID'];
-
-            if ($resultCode !== 0) {
-                Log::warning('STK Push failed: ' . $body['ResultDesc']);
+            $body = $payload['Body']['stkCallback'] ?? null;
+            if (!$body) {
+                Log::warning('STK Callback missing Body.stkCallback');
                 return false;
             }
 
-            $metadata   = $body['CallbackMetadata']['Item'];
-            $amount     = $this->getMetadataValue($metadata, 'Amount');
-            $mpesaCode  = $this->getMetadataValue($metadata, 'MpesaReceiptNumber');
-            $phone      = $this->getMetadataValue($metadata, 'PhoneNumber');
+            $resultCode = $body['ResultCode'] ?? null;
+            $checkoutId = $body['CheckoutRequestID'] ?? null;
+            $resultDesc = $body['ResultDesc'] ?? null;
 
-            // Find client by phone
-            $client = Client::where('phone', 'like', '%' . substr($phone, -9))->first();
-
-            if (!$client) {
-                Log::warning('Client not found for phone: ' . $phone);
+            if (!$checkoutId) {
+                Log::warning('STK Callback missing CheckoutRequestID');
                 return false;
             }
 
-            // Find unpaid invoice
-            $invoice = Invoice::where('client_id', $client->id)
-                              ->where('status', 'unpaid')
-                              ->orderBy('created_at', 'asc')
-                              ->first();
+            $tx = MpesaTransaction::where('checkout_request_id', $checkoutId)->first();
+            if (!$tx) {
+                Log::warning('STK Callback received for unknown CheckoutRequestID: ' . $checkoutId);
+                return false;
+            }
 
-            // Record payment
-            $this->paymentService->recordPayment([
-                'client_id'  => $client->id,
-                'invoice_id' => $invoice?->id,
-                'amount'     => $amount,
-                'method'     => 'mpesa',
-                'mpesa_code' => $mpesaCode,
-                'reference'  => $checkoutId,
-                'idempotency_key' => $mpesaCode ?: $checkoutId,
-            ], null);
+            // Idempotency: ignore duplicate callbacks once completed.
+            if ($tx->status === 'completed') {
+                return true;
+            }
+
+            $metadata = $body['CallbackMetadata']['Item'] ?? [];
+            $amount = $this->getMetadataValue($metadata, 'Amount');
+            $mpesaCode = $this->getMetadataValue($metadata, 'MpesaReceiptNumber');
+            $phone = $this->getMetadataValue($metadata, 'PhoneNumber');
+
+            $tx->update([
+                'result_code' => $resultCode,
+                'result_desc' => $resultDesc,
+                'raw_callback' => $payload,
+                'mpesa_receipt_number' => $mpesaCode ?: $tx->mpesa_receipt_number,
+                'phone' => $phone ? (string) $phone : $tx->phone,
+                'amount' => $amount ?: $tx->amount,
+                'status' => ((int) $resultCode === 0) ? 'pending' : 'failed',
+            ]);
+
+            if ((int) $resultCode !== 0) {
+                Log::warning('STK Push failed: ' . ($resultDesc ?? 'Unknown'));
+                return false;
+            }
+
+            $invoiceId = $tx->invoice_id;
+            $clientId = $tx->client_id;
+
+            DB::transaction(function () use ($invoiceId, $clientId, $amount, $mpesaCode, $checkoutId, $tx) {
+                if ($invoiceId) {
+                    // Lock invoice row to avoid concurrent pay/overpay races.
+                    Invoice::whereKey($invoiceId)->lockForUpdate()->first();
+                }
+
+                $this->paymentService->recordPayment([
+                    'client_id' => $clientId,
+                    'invoice_id' => $invoiceId,
+                    'amount' => $amount,
+                    'method' => 'mpesa',
+                    'mpesa_code' => $mpesaCode,
+                    'reference' => $checkoutId,
+                    'idempotency_key' => $mpesaCode ?: $checkoutId,
+                ], null);
+
+                $tx->update(['status' => 'completed']);
+            });
 
             return true;
 

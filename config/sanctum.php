@@ -47,7 +47,8 @@ return [
     |
     */
 
-    'expiration' => null,
+    // Minutes until tokens expire (MVP default: 30 days).
+    'expiration' => (int) env('SANCTUM_TOKEN_EXPIRATION', 43200),
 
     /*
     |--------------------------------------------------------------------------
