@@ -3,14 +3,16 @@
 namespace App\Http\Controllers\Portal;
 
 use App\Http\Controllers\Controller;
-use App\Models\Client;
 use App\Models\ClientAccount;
 use App\Models\SystemLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use App\Traits\ApiResponse;
 
 class PortalAuthController extends Controller
 {
+    use ApiResponse;
+
     // POST /api/portal/login
     public function login(Request $request)
     {
@@ -24,20 +26,14 @@ class PortalAuthController extends Controller
                                 ->first();
 
         if (!$account || !Hash::check($request->password, $account->password)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid credentials',
-            ], 401);
+            return $this->error('Invalid credentials', null, 401);
         }
 
         if ($account->status === 'suspended') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Your account is suspended. Please contact support.',
-            ], 403);
+            return $this->error('Your account is suspended. Please contact support.', null, 403);
         }
 
-        $token = $account->client->createToken('portal_token')->plainTextToken;
+        $token = $account->client->createToken('portal_token', ['portal'])->plainTextToken;
 
         SystemLog::create([
             'action'     => 'client portal login',
@@ -46,26 +42,22 @@ class PortalAuthController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Login successful',
-            'data'    => [
-                'client'  => [
-                    'id'         => $account->client->id,
-                    'name'       => $account->client->first_name . ' ' . $account->client->last_name,
-                    'email'      => $account->client->email,
-                    'phone'      => $account->client->phone,
-                ],
-                'account' => [
-                    'id'          => $account->id,
-                    'username'    => $account->username,
-                    'status'      => $account->status,
-                    'expiry_date' => $account->expiry_date,
-                    'plan'        => $account->plan,
-                ],
-                'token'   => $token,
+        return $this->success([
+            'client' => [
+                'id' => $account->client->id,
+                'name' => $account->client->first_name . ' ' . $account->client->last_name,
+                'email' => $account->client->email,
+                'phone' => $account->client->phone,
             ],
-        ]);
+            'account' => [
+                'id' => $account->id,
+                'username' => $account->username,
+                'status' => $account->status,
+                'expiry_date' => $account->expiry_date,
+                'plan' => $account->plan,
+            ],
+            'token' => $token,
+        ], 'Login successful');
     }
 
     // POST /api/portal/logout
@@ -73,9 +65,6 @@ class PortalAuthController extends Controller
     {
         $request->user()->currentAccessToken()->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Logged out successfully',
-        ]);
+        return $this->success(null, 'Logged out successfully');
     }
 }
