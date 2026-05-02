@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('client_accounts', function (Blueprint $table) {
             $table->id();
             $table->foreignId('client_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('plan_id')->constrained()->nullOnDelete();
+            $table->foreignId('plan_id')->nullable()->constrained()->nullOnDelete();
             $table->string('username')->unique();
             $table->string('password');
             $table->string('ip_address')->nullable();

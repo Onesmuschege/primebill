@@ -1,49 +1,49 @@
 <?php
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Schema;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
-class CreatePaymentIdempotencyAndSecurityFeatures extends Migration
+return new class extends Migration
 {
-    public function up()
+    public function up(): void
     {
-        // New table for tracking M-Pesa callbacks
         Schema::create('mpesa_callbacks', function (Blueprint $table) {
             $table->id();
-            $table->string('payment_id');
-            $table->string('callback_data');
+            $table->foreignId('payment_id')->nullable()->constrained('payments')->nullOnDelete();
+            $table->json('callback_data');
             $table->timestamps();
         });
 
-        // Table for recording payment failures
         Schema::create('payment_failures', function (Blueprint $table) {
             $table->id();
-            $table->string('payment_id');
+            $table->foreignId('payment_id')->nullable()->constrained('payments')->nullOnDelete();
             $table->string('error_message');
+            $table->json('context')->nullable();
             $table->timestamps();
         });
 
-        // Table for tracking invoice cycles
         Schema::create('invoice_cycles', function (Blueprint $table) {
             $table->id();
-            $table->integer('invoice_id');
+            $table->foreignId('invoice_id')->constrained('invoices')->cascadeOnDelete();
             $table->dateTime('cycle_start');
             $table->dateTime('cycle_end');
             $table->timestamps();
+
+            $table->unique(['invoice_id', 'cycle_start', 'cycle_end']);
         });
 
-        // Table for MikroTik sync logs
         Schema::create('mikrotik_sync_logs', function (Blueprint $table) {
             $table->id();
-            $table->string('log_message');
+            $table->text('log_message');
             $table->timestamps();
         });
     }
 
-    public function down()
+    public function down(): void
     {
         Schema::dropIfExists('mpesa_callbacks');
         Schema::dropIfExists('payment_failures');
         Schema::dropIfExists('invoice_cycles');
         Schema::dropIfExists('mikrotik_sync_logs');
     }
-}
+};
