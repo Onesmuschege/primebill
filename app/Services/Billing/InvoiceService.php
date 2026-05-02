@@ -11,30 +11,29 @@ class InvoiceService
 {
     public function __construct(
         protected LedgerService $ledgerService
-    ) {
-    }
+    ) {}
 
     public function getAllInvoices(Request $request)
     {
         $query = Invoice::with('client');
 
-        if ($request->has('status')) {
+        if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        if ($request->has('client_id')) {
+        if ($request->filled('client_id')) {
             $query->where('client_id', $request->client_id);
         }
 
-        if ($request->has('from')) {
+        if ($request->filled('from')) {
             $query->whereDate('created_at', '>=', $request->from);
         }
 
-        if ($request->has('to')) {
+        if ($request->filled('to')) {
             $query->whereDate('created_at', '<=', $request->to);
         }
 
-        if ($request->has('search')) {
+        if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('invoice_number', 'like', "%{$search}%")
@@ -59,7 +58,9 @@ class InvoiceService
         $data['status']         = $data['status'] ?? 'unpaid';
 
         $invoice = Invoice::create($data);
-        $this->ledgerService->postInvoiceDebit($invoice, $userId ?: null);
+
+        // Post debit entry to ledger
+        $this->ledgerService->postInvoiceDebit($invoice, $userId);
 
         SystemLog::create([
             'user_id'    => $userId,
@@ -76,9 +77,10 @@ class InvoiceService
     {
         $oldValues = $invoice->toArray();
 
+        // Recalculate total if amount or tax changed
         if (isset($data['amount']) || isset($data['tax'])) {
-            $amount       = $data['amount'] ?? $invoice->amount;
-            $tax          = $data['tax'] ?? $invoice->tax;
+            $amount        = $data['amount'] ?? $invoice->amount;
+            $tax           = $data['tax']    ?? $invoice->tax;
             $data['total'] = $amount + $tax;
         }
 
@@ -93,11 +95,14 @@ class InvoiceService
             'new_values' => $data,
         ]);
 
-        return $invoice;
+        return $invoice->fresh('client');
     }
 
     public function deleteInvoice(Invoice $invoice, $userId): void
     {
+        // Reverse the ledger debit posted at creation
+        $this->ledgerService->postInvoiceReversal($invoice, $userId);
+
         SystemLog::create([
             'user_id'    => $userId,
             'action'     => 'deleted invoice',
@@ -128,21 +133,26 @@ class InvoiceService
 
     public function markOverdueInvoices(): int
     {
-        $count = Invoice::where('status', 'unpaid')
-            ->where('due_date', '<', now())
+        // Only mark unpaid invoices that are past due date
+        return Invoice::where('status', 'unpaid')
+            ->whereDate('due_date', '<', now()->toDateString())
             ->update(['status' => 'overdue']);
-
-        return $count;
     }
 
     public function generateInvoiceNumber(): string
     {
-        $prefix  = 'INV';
-        $year    = date('Y');
-        $last    = Invoice::whereYear('created_at', $year)
-                          ->orderBy('id', 'desc')
-                          ->first();
-        $number  = $last ? (intval(substr($last->invoice_number, -6)) + 1) : 1;
+        $prefix = 'INV';
+        $year   = date('Y');
+
+        // Lock to prevent race conditions under concurrent requests
+        $last = Invoice::whereYear('created_at', $year)
+                       ->orderBy('id', 'desc')
+                       ->lockForUpdate()
+                       ->first();
+
+        $number = $last
+            ? (intval(substr($last->invoice_number, -6)) + 1)
+            : 1;
 
         return $prefix . '-' . $year . '-' . str_pad($number, 6, '0', STR_PAD_LEFT);
     }
@@ -158,6 +168,13 @@ class InvoiceService
 
             foreach ($client->accounts as $account) {
                 if (!$account->plan) continue;
+
+                // Skip if an unpaid invoice already exists for this account's plan
+                $alreadyExists = Invoice::where('client_id', $clientId)
+                    ->whereIn('status', ['unpaid', 'overdue'])
+                    ->exists();
+
+                if ($alreadyExists) continue;
 
                 $this->createInvoice([
                     'client_id' => $clientId,
